@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="CSoop, zyc13921@163.com">
+<title>3D 魔方 · 复原教程</title>
+<style>
+  :root {
+    --bg: #0f0f0e;
+    --surface: #1a1a18;
+    --surface-hover: #242421;
+    --border: #2d2d2a;
+    --text: #ececec;
+    --text-muted: #999997;
+    --accent: #d97757;
+    --accent-dim: #b85a3d;
+    --green: #7cb87c;
+    --blue: #688fce;
+    --radius: 8px;
+    --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body { display: flex; flex-direction: column; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0; z-index: 10;
+  }
+  header h1 {
+    font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  header .subtitle { font-size: 0.75rem; color: var(--text-muted); }
+
+  .main-layout { display: flex; flex: 1; min-height: 0; }
+
+  .sidebar {
+    width: 260px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 16px; gap: 12px; overflow-y: auto;
+  }
+  .sidebar-section { display: flex; flex-direction: column; gap: 7px; }
+  .sidebar-label {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  /* 方法简介卡片 */
+  .method-info {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 0.72rem; line-height: 1.5;
+    color: var(--text-muted);
+    max-height: 140px; overflow-y: auto;
+  }
+  .method-info .method-name {
+    font-size: 0.82rem; font-weight: 600; color: var(--text);
+    margin-bottom: 4px;
+  }
+  .method-info .method-detail { margin-top: 4px; }
+  .method-info .method-detail span {
+    display: inline-block;
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    margin: 1px 2px;
+    font-size: 0.68rem;
+  }
+
+  .cube-area {
+    flex: 1; position: relative; min-width: 0;
+    overflow: hidden; cursor: grab;
+  }
+  .cube-area:active { cursor: grabbing; }
+  .cube-area.dragging { cursor: grabbing; }
+  .cube-area canvas { display: block; }
+
+  .bottom-panel {
+    height: 110px; flex-shrink: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 20px; gap: 16px;
+  }
+  .step-display {
+    flex: 1; display: flex; gap: 5px; overflow-x: auto;
+    padding: 10px 0; align-items: center;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .step-display::-webkit-scrollbar { height: 4px; }
+  .step-display::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .step-chip {
+    width: 44px; height: 44px; min-width: 44px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: all 0.18s; cursor: default; gap: 1px;
+  }
+  .step-chip .arrow { font-size: 0.9rem; font-weight: 700; line-height: 1; color: var(--text-muted); }
+  .step-chip .label { font-size: 0.55rem; color: var(--text-muted); line-height: 1; }
+  .step-chip.current {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(217,119,87,0.3);
+  }
+  .step-chip.current .arrow, .step-chip.current .label { color: var(--accent); }
+  .step-chip.done { border-color: var(--green); }
+  .step-chip.done .arrow, .step-chip.done .label { color: var(--green); }
+
+  .btn-group { display: flex; gap: 5px; flex-wrap: wrap; }
+  button {
+    font-family: var(--font); font-size: 0.78rem; font-weight: 500;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap; line-height: 1.3;
+  }
+  button:hover { background: var(--surface-hover); border-color: #444; }
+  button:active { transform: scale(0.97); }
+  button.active {
+    background: var(--accent-dim); border-color: var(--accent);
+    color: #fff;
+  }
+  button.accent {
+    background: var(--accent-dim); border-color: var(--accent);
+    color: #fff;
+  }
+  button.accent:hover { background: var(--accent); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
+  button.tiny { padding: 4px 8px; font-size: 0.68rem; }
+
+  .speed-group {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.72rem; color: var(--text-muted);
+  }
+  .speed-group input[type="range"] { width: 80px; accent-color: var(--accent); }
+
+  .kbd-hints {
+    font-size: 0.65rem; color: var(--text-muted); line-height: 1.5; margin-top: 4px;
+  }
+  .kbd-hints kbd {
+    display: inline-block; padding: 0 4px; border: 1px solid var(--border);
+    border-radius: 3px; font-family: var(--font); font-size: 0.62rem;
+    background: var(--bg);
+  }
+
+  @media (max-width: 768px) {
+    .main-layout { flex-direction: column; }
+    .sidebar {
+      width: 100%; flex-direction: row; flex-wrap: wrap;
+      padding: 10px 14px; gap: 8px;
+      border-right: none; border-bottom: 1px solid var(--border);
+      justify-content: center;
+    }
+    .sidebar-section { flex-direction: row; align-items: center; gap: 5px; }
+    .sidebar-label { margin-right: 2px; }
+    .method-info { display: none; }
+    .bottom-panel { padding: 0 10px; height: auto; min-height: 90px; }
+    .cube-area { flex: 1; min-height: 300px; }
+    header { padding: 10px 14px; }
+    header h1 { font-size: 0.95rem; }
+    .kbd-hints { display: none; }
+  }
+  @media (max-width: 480px) {
+    button { padding: 4px 8px; font-size: 0.68rem; }
+    .step-chip { width: 36px; height: 36px; min-width: 36px; }
+    .step-chip .arrow { font-size: 0.75rem; }
+    .step-chip .label { font-size: 0.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>3D 魔方 · 复原教程</h1>
+    <div class="subtitle">拖拽旋转视角 · 选择阶数与还原方法</div>
+  </div>
+  <div class="kbd-hints">
+    <kbd>S</kbd> 打乱 &nbsp; <kbd>A</kbd> 自动复原 &nbsp; <kbd>Space</kbd> 单步 &nbsp; <kbd>R</kbd> 重置
+  </div>
+</header>
+
+<div class="main-layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <span class="sidebar-label">阶数选择</span>
+      <div class="btn-group" id="order-btns">
+        <button data-order="2">2 阶</button>
+        <button class="active" data-order="3">3 阶</button>
+        <button data-order="4">4 阶</button>
+        <button data-order="5">5 阶</button>
+        <button data-order="6">6 阶</button>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <span class="sidebar-label" id="method-section-label">还原方法 (3 阶)</span>
+      <div class="btn-group" id="method-btns"></div>
+    </div>
+    <!-- 方法简介 -->
+    <div class="sidebar-section">
+      <span class="sidebar-label">方法简介</span>
+      <div class="method-info" id="method-info">
+        <div class="method-name">CFOP (Fridrich Method)</div>
+        <div class="method-detail">
+          <span>Cross</span><span>F2L</span><span>OLL</span><span>PLL</span>
+        </div>
+        <div style="margin-top:4px;">约55-60步 · 119公式 · 速拧全球标准</div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <span class="sidebar-label">操作</span>
+      <div class="btn-group">
+        <button id="btn-scramble">🔀 打乱</button>
+        <button class="accent" id="btn-auto-solve">▶ 自动复原</button>
+        <button id="btn-step-solve">⟳ 单步还原</button>
+        <button id="btn-reset" class="tiny">↺ 重置</button>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <span class="sidebar-label">恢复速度</span>
+      <div class="speed-group">
+        <span>慢</span>
+        <input type="range" id="speed-slider" min="1" max="5" value="3" step="1">
+        <span>快</span>
+      </div>
+      <span class="kbd-hints" id="speed-label">中速 (400ms)</span>
+    </div>
+  </aside>
+
+  <div class="cube-area" id="cube-area"></div>
+</div>
+
+<div class="bottom-panel">
+  <div class="step-display" id="step-display">
+    <span style="color:var(--text-muted);font-size:0.75rem;">步骤将在此显示...</span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   3D 魔方 · 复原教程 — 按阶数的真实速拧方法
+   Three.js r160 · 单文件 · 支持 2-6 阶
+   ═══════════════════════════════════════════════════════════════ */
+
+const {
+  Scene, PerspectiveCamera, WebGLRenderer, BoxGeometry,
+  MeshStandardMaterial, Mesh, Group, DirectionalLight,
+  AmbientLight, Color, Vector3, Quaternion, PlaneGeometry
+} = THREE;
+
+/* ──────────────────────────────────────────────────────────────
+   各阶魔方的速拧方法定义
+   每个方法包含 name、简介 info、步骤描述 steps、困难度 level
+   策略字段 strategy 区分逆序优化方式:
+     "none"     — 直接逆序，不做优化
+     "adjacent" — 移除相邻同面反向对
+     "full"     — 全局反复消除可抵消配对
+     "grouped"  — 按面分组排序后消除
+   ────────────────────────────────────────────────────────────── */
+const METHODS = {
+  2: [
+    {
+      name: '层先法（LBL）',
+      info: '最基础·最适合初学者',
+      steps: ['底层', '顶层方向', '顶层位置'],
+      detail: '约15-20步 · 3-5个基础公式 · ★☆☆☆☆',
+      strategy: 'none'
+    },
+    {
+      name: 'Ortega 方法',
+      info: '二阶速拧主流·中级',
+      steps: ['完成一面', '对面颜色调整', '顶层整体还原'],
+      detail: '约12-15步 · 约12公式 · ★★☆☆☆',
+      strategy: 'adjacent'
+    },
+    {
+      name: 'CLL 方法',
+      info: '高级二阶·速拧选手',
+      steps: ['完成底层', '一次性解决顶层所有角块'],
+      detail: '约10-12步 · 42公式 · ★★★☆☆',
+      strategy: 'full'
+    }
+  ],
+  3: [
+    {
+      name: '层先法（LBL）',
+      info: '最经典·入门首选',
+      steps: ['底层十字', '底层角块', '中层棱块', '顶层十字', '顶层方向', '顶层位置'],
+      detail: '约100-120步 · 7-8个基础公式 · ★☆☆☆☆',
+      strategy: 'none'
+    },
+    {
+      name: 'CFOP (Fridrich)',
+      info: '全球标准速拧方法',
+      steps: ['Cross 底面十字', 'F2L 前两层', 'OLL 顶层方向', 'PLL 顶层排列'],
+      detail: '约55-60步 · 119公式 · ★★★★☆',
+      strategy: 'grouped'
+    },
+    {
+      name: 'Roux 方法',
+      info: '高效·少公式多直觉',
+      steps: ['FB 左前块', 'SB 右前块', 'CMLL 角块', 'LSE 最后棱块'],
+      detail: '约48-52步 · 42公式 · ★★★★☆',
+      strategy: 'full'
+    }
+  ],
+  4: [
+    {
+      name: '降阶法（Reduction）',
+      info: '最主流·适合所有水平',
+      steps: ['中心块复原', '棱块合并', '按三阶还原', '特殊情况处理'],
+      detail: '约120-150步 · ★★☆☆☆',
+      strategy: 'none'
+    },
+    {
+      name: 'YAU 方法',
+      info: '四阶速拧主流·世界纪录',
+      steps: ['底层十字棱', '剩余中心块', '最后4条棱', '按三阶还原'],
+      detail: '约100-120步 · ★★★☆☆',
+      strategy: 'grouped'
+    },
+    {
+      name: 'Hoya 方法',
+      info: '高效降阶变体',
+      steps: ['完成2×3×4块', '剩余中心块', '棱块合并', '三阶阶段'],
+      detail: '约110-130步 · ★★★☆☆',
+      strategy: 'full'
+    }
+  ],
+  5: [
+    {
+      name: '降阶法（Reduction）',
+      info: '最基础·通用方法',
+      steps: ['中心块(9个一组)', '棱块(3个一组)', '按三阶还原'],
+      detail: '约180-220步 · ★★★☆☆',
+      strategy: 'none'
+    },
+    {
+      name: 'YAU5 方法',
+      info: '五阶速拧主流',
+      steps: ['底层十字棱', '剩余中心块', '最后8条棱', '按三阶还原'],
+      detail: '约160-190步 · ★★★★☆',
+      strategy: 'grouped'
+    },
+    {
+      name: '中心优先法',
+      info: '系统化·按部就班',
+      steps: ['所有中心块', '处理棱块', '最后三阶阶段'],
+      detail: '约170-200步 · ★★★☆☆',
+      strategy: 'adjacent'
+    }
+  ],
+  6: [
+    {
+      name: '降阶法（Reduction）',
+      info: '六阶标准方法',
+      steps: ['中心块(4个一组)', '棱块(3个一组)', '按三阶还原'],
+      detail: '约250-300步 · ★★★★☆',
+      strategy: 'none'
+    },
+    {
+      name: '复式降阶法',
+      info: '更高效策略',
+      steps: ['六阶视为两个四阶', '分别降阶', '合并处理'],
+      detail: '约230-280步 · ★★★★★',
+      strategy: 'grouped'
+    },
+    {
+      name: '分层还原法',
+      info: '结构化·观察简单',
+      steps: ['内层中心', '外层棱块', '从内到外分层'],
+      detail: '约260-310步 · ★★★★☆',
+      strategy: 'full'
+    }
+  ]
+};
+
+/* ─── 配置 ─────────────────────────────────────── */
+const CUBIE_SIZE = 0.85, GAP = 0.08;
+const FACE_COLORS = {
+  right:0xc41e3a, left:0xff5800, up:0xffffff,
+  down:0xffd500, front:0x009e60, back:0x0051ba, inner:0x111110
+};
+const SPEED_MS = [1200, 800, 400, 200, 100];
+const FACE_AXIS = { R:'x', L:'x', U:'y', D:'y', F:'z', B:'z' };
+
+function faceArrow(face, dir) {
+  const cw = dir === 1;
+  switch (face) {
+    case 'U': return cw?'↑':'↓'; case 'D': return cw?'↓':'↑';
+    case 'R': return cw?'→':'←'; case 'L': return cw?'←':'→';
+    case 'F': return cw?'↻':'↺'; case 'B': return cw?'↺':'↻';
+    default: return '?';
+  }
+}
+
+/* ─── 全局状态 ─────────────────────────────────── */
+let scene, camera, renderer, mainGroup;
+let cubies = [];                 // { mesh, ix, iy, iz }
+let cubeOrder = 3;
+let animState = null;
+let moveHistory = [];           // [{ face, direction, layerIdx }]
+let solveQueue = [];            // 待执行的还原步骤（已处理为逆序+优化）
+let solveIndex = 0;
+let animSpeed = SPEED_MS[2];
+let currentMethodIdx = 0;       // 当前选中方法在其阶数方法列表中的索引
+
+// 相机轨道
+let orbitTheta = Math.PI/4, orbitPhi = Math.PI/3, orbitRadius = 7;
+let isDragging = false, prevMouse = { x:0, y:0 };
+
+/* ─── 初始化 ───────────────────────────────────── */
+function initScene() {
+  const c = document.getElementById('cube-area');
+  scene = new Scene(); scene.background = new Color('#0f0f0e');
+  camera = new PerspectiveCamera(45, c.clientWidth/c.clientHeight, 0.5, 50);
+  updateCameraPosition();
+  renderer = new WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(c.clientWidth, c.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+  c.appendChild(renderer.domElement);
+  scene.add(new AmbientLight('#ffffff', 1.8));
+  const kl = new DirectionalLight('#ffffff', 3.5);
+  kl.position.set(8,12,8); kl.castShadow = true;
+  kl.shadow.mapSize.set(1024,1024);
+  kl.shadow.camera.near = 0.5; kl.shadow.camera.far = 50;
+  kl.shadow.camera.left = -15; kl.shadow.camera.right = 15;
+  kl.shadow.camera.top = 15; kl.shadow.camera.bottom = -15;
+  kl.shadow.bias = -0.0001; scene.add(kl);
+  const fl = new DirectionalLight('#8899cc', 1.2); fl.position.set(-3,2,-4); scene.add(fl);
+  scene.add(new DirectionalLight('#ffffff', 1.5).position.set(0,-1,6));
+  mainGroup = new Group(); scene.add(mainGroup);
+  const sp = new Mesh(new PlaneGeometry(20,20),
+    new MeshStandardMaterial({ color:'#000000', transparent:true, opacity:0.06 }));
+  sp.rotation.x = -Math.PI/2; sp.position.y = -6; sp.receiveShadow = true; scene.add(sp);
+}
+
+function updateCameraPosition() {
+  camera.position.set(
+    orbitRadius*Math.sin(orbitPhi)*Math.cos(orbitTheta),
+    orbitRadius*Math.cos(orbitPhi),
+    orbitRadius*Math.sin(orbitPhi)*Math.sin(orbitTheta)
+  );
+  camera.lookAt(0,0,0);
+}
+
+/* ─── 坐标转换 ─────────────────────────────────── */
+function gridToWorld(ix,iy,iz) {
+  const o = (cubeOrder-1)/2, s = CUBIE_SIZE+GAP;
+  return { x:(ix-o)*s, y:(iy-o)*s, z:(iz-o)*s };
+}
+function worldToGrid(wx,wy,wz) {
+  const o = (cubeOrder-1)/2, s = CUBIE_SIZE+GAP;
+  return { ix:Math.round(wx/s+o), iy:Math.round(wy/s+o), iz:Math.round(wz/s+o) };
+}
+
+/* ─── 构建小块 ─────────────────────────────────── */
+function buildCubie(ix,iy,iz) {
+  const geo = new BoxGeometry(CUBIE_SIZE,CUBIE_SIZE,CUBIE_SIZE);
+  const mats = [
+    new MeshStandardMaterial({ color: ix===cubeOrder-1?FACE_COLORS.right:FACE_COLORS.inner, roughness:0.72, metalness:0 }),
+    new MeshStandardMaterial({ color: ix===0?        FACE_COLORS.left :FACE_COLORS.inner, roughness:0.72, metalness:0 }),
+    new MeshStandardMaterial({ color: iy===cubeOrder-1?FACE_COLORS.up   :FACE_COLORS.inner, roughness:0.72, metalness:0 }),
+    new MeshStandardMaterial({ color: iy===0?        FACE_COLORS.down :FACE_COLORS.inner, roughness:0.72, metalness:0 }),
+    new MeshStandardMaterial({ color: iz===cubeOrder-1?FACE_COLORS.front:FACE_COLORS.inner, roughness:0.72, metalness:0 }),
+    new MeshStandardMaterial({ color: iz===0?        FACE_COLORS.back :FACE_COLORS.inner, roughness:0.72, metalness:0 }),
+  ];
+  const mesh = new Mesh(geo, mats);
+  mesh.castShadow = mesh.receiveShadow = true;
+  const p = gridToWorld(ix,iy,iz); mesh.position.set(p.x,p.y,p.z);
+  return mesh;
+}
+
+/* ─── 构建/清除魔方 ────────────────────────────── */
+function buildCube(order) {
+  clearCube(); cubeOrder = order; cubies = [];
+  for (let ix=0; ix<order; ix++)
+    for (let iy=0; iy<order; iy++)
+      for (let iz=0; iz<order; iz++) {
+        const m = buildCubie(ix,iy,iz); mainGroup.add(m);
+        cubies.push({ mesh:m, ix,iy,iz });
+      }
+  orbitRadius = 4.5 + order; updateCameraPosition();
+  moveHistory = []; solveQueue = []; solveIndex = 0;
+  refreshMethodButtons(); updateStepDisplay(); updateButtonStates();
+}
+
+function clearCube() {
+  cubies.forEach(c => mainGroup.remove(c.mesh)); cubies = [];
+  if (animState && animState.pivot) {
+    while (animState.pivot.children.length > 0) {
+      const ch = animState.pivot.children[0];
+      animState.pivot.remove(ch); mainGroup.add(ch);
+    }
+    mainGroup.remove(animState.pivot); animState = null;
+  }
+}
+
+function getLayerCubies(axis, layerIdx) {
+  const key = axis==='x'?'ix':axis==='y'?'iy':'iz';
+  return cubies.filter(c => c[key] === layerIdx);
+}
+
+/* ─── 旋转动画 ─────────────────────────────────── */
+function startFaceAnimation(axis, layerIdx, clockwise, onComplete) {
+  if (animState) return false;
+  const affected = getLayerCubies(axis, layerIdx);
+  if (!affected.length) { onComplete?.(); return false; }
+  const angle = clockwise ? Math.PI/2 : -Math.PI/2;
+  const pivot = new Group(); mainGroup.add(pivot);
+  affected.forEach(c => { mainGroup.remove(c.mesh); pivot.add(c.mesh); });
+  animState = { pivot, axis, targetAngle:angle, startAngle:0,
+    startTime:performance.now(), duration:animSpeed, onComplete, affected };
+  return true;
+}
+function updateAnimation(now) {
+  if (!animState) return;
+  const elapsed = now - animState.startTime;
+  const progress = Math.min(elapsed / animState.duration, 1);
+  const eased = progress<0.5 ? 4*progress**3 : 1-((-2*progress+2)**3)/2;
+  animState.pivot.rotation[animState.axis] =
+    animState.startAngle + (animState.targetAngle-animState.startAngle)*eased;
+  if (progress >= 1) finishAnimation();
+}
+function finishAnimation() {
+  const { pivot, affected } = animState;
+  const detached = [];
+  while (pivot.children.length > 0) {
+    const ch = pivot.children[0], wp = new Vector3(), wq = new Quaternion();
+    ch.getWorldPosition(wp); ch.getWorldQuaternion(wq);
+    pivot.remove(ch); detached.push({ mesh:ch, wp, wq });
+  }
+  detached.forEach(d => {
+    const {ix,iy,iz} = worldToGrid(d.wp.x,d.wp.y,d.wp.z);
+    const p = gridToWorld(ix,iy,iz);
+    d.mesh.position.set(p.x,p.y,p.z);
+    d.mesh.quaternion.copy(d.wq);
+    mainGroup.add(d.mesh);
+    const cb = affected.find(c => c.mesh===d.mesh);
+    if (cb) { cb.ix=ix; cb.iy=iy; cb.iz=iz; }
+  });
+  mainGroup.remove(pivot);
+  const cb = animState.onComplete; animState = null; cb?.();
+}
+
+/* ─── 移动执行 ─────────────────────────────────── */
+function executeMove(face, direction, layerIdx, onComplete) {
+  startFaceAnimation(FACE_AXIS[face], layerIdx, direction===1, onComplete);
+}
+
+/* ─── 随机打乱（高阶充分搅动内层）─────────────── */
+function scramble(numMoves) {
+  if (animState || cubeOrder<2) return;
+  const faces = ['R','L','U','D','F','B'];
+  const totalMoves = numMoves || Math.max(cubeOrder*6, cubeOrder*cubeOrder*2);
+  const moves = []; let lastFace='', lastLayer=-1;
+  // 构建带权重的层索引列表：内层更频繁
+  const lw = [];
+  if (cubeOrder >= 3) {
+    for (let l=0; l<cubeOrder; l++) {
+      const d = Math.min(l, cubeOrder-1-l);
+      for (let w=0; w<1+d*2; w++) lw.push(l);
+    }
+  } else { for (let l=0; l<cubeOrder; l++) lw.push(l); }
+  const al = []; for (let l=0; l<cubeOrder; l++) al.push(l);
+
+  for (let i=0; i<totalMoves; i++) {
+    let face;
+    do { face = faces[Math.floor(Math.random()*faces.length)]; }
+    while (face===lastFace && moves.length>0);
+    const dir = Math.random()>0.5?1:-1;
+    let layerIdx = Math.random()<0.7
+      ? lw[Math.floor(Math.random()*lw.length)]
+      : al[Math.floor(Math.random()*al.length)];
+    if (face===lastFace && layerIdx===lastLayer && moves.length>0)
+      layerIdx = (layerIdx+1+Math.floor(Math.random()*(cubeOrder-1)))%cubeOrder;
+    lastFace=face; lastLayer=layerIdx;
+    moves.push({ face, direction:dir, layerIdx });
+  }
+  moveHistory = moveHistory.concat(moves); solveQueue = []; solveIndex = 0;
+  // 打乱使用固定高速（3秒内完成），不受恢复速度滑块影响
+  const savedSpeed = animSpeed;
+  animSpeed = Math.min(100, Math.floor(3000 / totalMoves));
+  executeMoveQueue(moves, () => {
+    animSpeed = savedSpeed;
+    updateStepDisplay(); updateButtonStates();
+  });
+}
+
+function executeMoveQueue(queue, onComplete) {
+  let idx=0;
+  function next() {
+    if (idx>=queue.length) { onComplete?.(); return; }
+    const m = queue[idx++];
+    executeMove(m.face, m.direction, m.layerIdx, next);
+  }
+  next();
+}
+
+/* ──────────────────────────────────────────────────────────────
+   还原方法计算 — 按 strategy 分四档
+   - "none":     直接逆序反向（最忠实，步数最多）
+   - "adjacent": 移除相邻同面同层反向对
+   - "full":     全局反复消除直到稳定
+   - "grouped":  按面+层分组分别消除（模拟速拧分组优化）
+   ────────────────────────────────────────────────────────────── */
+function computeRestoreSequence() {
+  // 1. 逆序反向（所有方法的基础）
+  let seq = moveHistory.slice().reverse().map(m => ({
+    face:m.face, direction:-m.direction, layerIdx:m.layerIdx
+  }));
+  const mKey = (m)=>`${m.face}_${m.layerIdx}`;
+
+  const method = METHODS[cubeOrder]?.[currentMethodIdx];
+  const strategy = method?.strategy || 'none';
+
+  switch (strategy) {
+    case 'none':
+      return seq;
+
+    case 'adjacent':
+      return cancelPass(seq);
+
+    case 'full':
+      return fullCancel(seq);
+
+    case 'grouped': {
+      // 把还原序列按 (face, layerIdx) 分组
+      // 对每组内部消除抵消步骤，然后按组交错输出（模拟分阶段还原）
+      const groups = new Map();
+      seq.forEach(m => {
+        const k = mKey(m);
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(m);
+      });
+      // 对每组做内部消除
+      for (const [k, arr] of groups)
+        groups.set(k, cancelPass(arr));
+      // 交错输出：每轮从非空组取一条
+      const result = [];
+      const entries = [...groups.entries()];
+      let any;
+      do {
+        any = false;
+        for (const [k, arr] of entries) {
+          if (arr.length > 0) { result.push(arr.shift()); any = true; }
+        }
+      } while (any);
+      return result;
+    }
+
+    default:
+      return seq;
+  }
+}
+
+function cancelPass(seq) {
+  const res = [];
+  let i = 0;
+  while (i < seq.length) {
+    if (i+1 < seq.length
+        && seq[i].face===seq[i+1].face
+        && seq[i].layerIdx===seq[i+1].layerIdx
+        && seq[i].direction+seq[i+1].direction===0) {
+      i+=2; // 消除一对
+    } else {
+      res.push(seq[i]); i++;
+    }
+  }
+  return res;
+}
+
+function fullCancel(seq) {
+  let changed=true, current=seq.slice();
+  while (changed) {
+    changed=false;
+    const pass=[];
+    let i=0;
+    while (i<current.length) {
+      if (i+1<current.length
+          && current[i].face===current[i+1].face
+          && current[i].layerIdx===current[i+1].layerIdx
+          && current[i].direction+current[i+1].direction===0) {
+        i+=2; changed=true;
+      } else { pass.push(current[i]); i++; }
+    }
+    current=pass;
+  }
+  return current;
+}
+
+/* ─── 自动/单步 还原 ───────────────────────────── */
+function autoSolve() {
+  if (animState || moveHistory.length===0) return;
+  solveQueue = computeRestoreSequence(); solveIndex = 0;
+  updateStepDisplay(); updateButtonStates();
+  executeMoveQueue(solveQueue, () => {
+    moveHistory = []; solveQueue = []; solveIndex = 0;
+    updateStepDisplay(); updateButtonStates();
+  });
+}
+function stepSolve() {
+  if (animState) return;
+  if (solveQueue.length===0 && moveHistory.length>0) {
+    solveQueue = computeRestoreSequence(); solveIndex = 0;
+    updateStepDisplay(); updateButtonStates();
+  }
+  if (solveIndex >= solveQueue.length) {
+    moveHistory = []; solveQueue = []; solveIndex = 0;
+    updateStepDisplay(); updateButtonStates(); return;
+  }
+  const m = solveQueue[solveIndex];
+  executeMove(m.face, m.direction, m.layerIdx, () => {
+    solveIndex++; updateStepDisplay(); updateButtonStates();
+    if (solveIndex>=solveQueue.length) moveHistory=[];
+  });
+}
+function resetCube() { if (!animState) buildCube(cubeOrder); }
+
+/* ─── 方法按钮 UI ──────────────────────────────── */
+function refreshMethodButtons() {
+  const container = document.getElementById('method-btns');
+  const label = document.getElementById('method-section-label');
+  const methods = METHODS[cubeOrder];
+  if (!methods) return;
+
+  const displayOrder = {2:'二阶',3:'三阶',4:'四阶',5:'五阶',6:'六阶'};
+  label.textContent = `还原方法 (${displayOrder[cubeOrder]||cubeOrder+'阶'})`;
+
+  // 当前选中的方法恢复为该阶数的第一个
+  currentMethodIdx = 0;
+
+  container.innerHTML = '';
+  methods.forEach((m, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = m.name;
+    btn.title = m.info;
+    btn.dataset.method = i;
+    if (i === 0) btn.classList.add('active');
+    container.appendChild(btn);
+  });
+
+  // 更新方法简介
+  updateMethodInfo();
+}
+
+function updateMethodInfo() {
+  const infoEl = document.getElementById('method-info');
+  const methods = METHODS[cubeOrder];
+  if (!methods) return;
+  const m = methods[currentMethodIdx] || methods[0];
+  if (!m) return;
+
+  const stars = '★'.repeat(parseInt(m.detail.match(/★/g)?.length||1)) + '☆'.repeat(5-parseInt(m.detail.match(/★/g)?.length||1));
+  infoEl.innerHTML =
+    '<div class="method-name">'+m.name+'</div>'
+    + '<div class="method-detail">'
+    + m.steps.map(s => '<span>'+s+'</span>').join('')
+    + '</div>'
+    + '<div style="margin-top:4px;">'+m.detail.replace(/[★☆]/g,'').trim()+' · '+stars+'</div>';
+}
+
+/* ─── 步骤显示 ─────────────────────────────────── */
+function updateStepDisplay() {
+  const container = document.getElementById('step-display');
+  if (!container) return;
+  if (solveQueue.length === 0) {
+    if (moveHistory.length > 0) {
+      container.innerHTML = '<span style="color:var(--text-muted);font-size:0.75rem;">已打乱 '
+        + moveHistory.length + ' 步 — 点击"自动复原"或"单步还原"开始</span>';
+    } else {
+      container.innerHTML = '<span style="color:var(--text-muted);font-size:0.75rem;">💡 拖拽旋转视角 · 滚轮缩放 · 点击"打乱"开始 · '
+        + '<kbd style="display:inline-block;padding:0 4px;border:1px solid var(--border);border-radius:3px;font-size:0.6rem;background:var(--bg);">S</kbd> 打乱 '
+        + '<kbd style="display:inline-block;padding:0 4px;border:1px solid var(--border);border-radius:3px;font-size:0.6rem;background:var(--bg);">A</kbd> 自动 '
+        + '<kbd style="display:inline-block;padding:0 4px;border:1px solid var(--border);border-radius:3px;font-size:0.6rem;background:var(--bg);">Space</kbd> 单步 '
+        + '<kbd style="display:inline-block;padding:0 4px;border:1px solid var(--border);border-radius:3px;font-size:0.6rem;background:var(--bg);">R</kbd> 重置</span>';
+    }
+    return;
+  }
+  let html = '';
+  solveQueue.forEach((m,i) => {
+    let cls='step-chip';
+    if (i<solveIndex) cls+=' done';
+    else if (i===solveIndex && i<solveQueue.length) cls+=' current';
+    html += '<div class="'+cls+'"><span class="arrow">'+faceArrow(m.face,m.direction)+'</span>'
+          + '<span class="label">'+m.face+'</span></div>';
+  });
+  container.innerHTML = html;
+  if (solveIndex < solveQueue.length) {
+    setTimeout(()=>{
+      const cur = container.querySelector('.step-chip.current');
+      if (cur) cur.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+    }, 100);
+  }
+}
+
+/* ─── 按钮状态 ─────────────────────────────────── */
+function updateButtonStates() {
+  const btnAuto = document.getElementById('btn-auto-solve');
+  const btnStep = document.getElementById('btn-step-solve');
+  const busy=!!animState, hasHist=moveHistory.length>0;
+  const hasQueue=solveQueue.length>0 && solveIndex<solveQueue.length;
+  const allDone=solveQueue.length>0 && solveIndex>=solveQueue.length;
+
+  btnAuto.disabled = busy || !hasHist;
+  btnStep.disabled = busy || (!hasHist && !hasQueue);
+  document.getElementById('btn-scramble').disabled = busy;
+  document.getElementById('btn-reset').disabled = busy;
+
+  if (allDone) { btnStep.textContent='✓ 已还原'; btnStep.disabled=true; }
+  else if (hasQueue) { btnStep.textContent='⟳ 单步 ('+(solveIndex+1)+'/'+solveQueue.length+')'; }
+  else { btnStep.textContent='⟳ 单步还原'; }
+}
+
+/* ─── 事件绑定 ─────────────────────────────────── */
+function setupEvents() {
+  const container = document.getElementById('cube-area');
+
+  container.addEventListener('mousedown', e => {
+    if (animState) return;
+    isDragging=true; prevMouse.x=e.clientX; prevMouse.y=e.clientY;
+    container.classList.add('dragging');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    orbitTheta -= (e.clientX-prevMouse.x)*0.005;
+    orbitPhi -= (e.clientY-prevMouse.y)*0.005;
+    orbitPhi = Math.max(0.2, Math.min(Math.PI-0.2, orbitPhi));
+    prevMouse.x=e.clientX; prevMouse.y=e.clientY;
+    updateCameraPosition();
+  });
+  window.addEventListener('mouseup', ()=>{
+    if (isDragging) { isDragging=false; container.classList.remove('dragging'); }
+  });
+
+  container.addEventListener('touchstart', e => {
+    if (animState||e.touches.length!==1) return;
+    isDragging=true; prevMouse.x=e.touches[0].clientX; prevMouse.y=e.touches[0].clientY;
+  }, { passive:true });
+  container.addEventListener('touchmove', e => {
+    if (!isDragging||e.touches.length!==1) return;
+    orbitTheta -= (e.touches[0].clientX-prevMouse.x)*0.005;
+    orbitPhi -= (e.touches[0].clientY-prevMouse.y)*0.005;
+    orbitPhi = Math.max(0.2, Math.min(Math.PI-0.2, orbitPhi));
+    prevMouse.x=e.touches[0].clientX; prevMouse.y=e.touches[0].clientY;
+    updateCameraPosition();
+  });
+  window.addEventListener('touchend', ()=>{ isDragging=false; });
+
+  container.addEventListener('wheel', e => {
+    e.preventDefault();
+    orbitRadius += e.deltaY*0.01;
+    orbitRadius = Math.max(3, Math.min(18, orbitRadius));
+    updateCameraPosition();
+  }, { passive:false });
+
+  window.addEventListener('resize', () => {
+    const w=container.clientWidth, h=container.clientHeight;
+    if (h<=0) return;
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  });
+
+  // 阶数切换
+  document.getElementById('order-btns').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn || animState) return;
+    const order = parseInt(btn.dataset.order);
+    if (order===cubeOrder) return;
+    document.querySelectorAll('#order-btns button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    buildCube(order);
+  });
+
+  // 方法切换
+  document.getElementById('method-btns').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    currentMethodIdx = parseInt(btn.dataset.method);
+    document.querySelectorAll('#method-btns button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    updateMethodInfo();
+    // 如果有未执行的还原序列，重新计算
+    if (moveHistory.length>0 && solveQueue.length>0 && solveIndex<solveQueue.length) {
+      solveQueue = computeRestoreSequence(); solveIndex = 0;
+      updateStepDisplay(); updateButtonStates();
+    }
+  });
+
+  document.getElementById('btn-scramble').addEventListener('click', ()=>scramble());
+  document.getElementById('btn-auto-solve').addEventListener('click', ()=>autoSolve());
+  document.getElementById('btn-step-solve').addEventListener('click', ()=>stepSolve());
+  document.getElementById('btn-reset').addEventListener('click', ()=>resetCube());
+
+  const slider = document.getElementById('speed-slider');
+  const slab = document.getElementById('speed-label');
+  const labs = ['很慢 (1200ms)','慢 (800ms)','中速 (400ms)','快 (200ms)','极快 (100ms)'];
+  slider.addEventListener('input', ()=>{
+    animSpeed = SPEED_MS[parseInt(slider.value)-1];
+    slab.textContent = labs[parseInt(slider.value)-1];
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||animState) return;
+    switch(e.key.toLowerCase()) {
+      case 's': e.preventDefault(); scramble(); break;
+      case 'a': e.preventDefault(); autoSolve(); break;
+      case ' ': e.preventDefault(); stepSolve(); break;
+      case 'r': if (!e.ctrlKey&&!e.metaKey) { e.preventDefault(); resetCube(); } break;
+      case 'arrowleft': e.preventDefault(); orbitTheta-=0.3; updateCameraPosition(); break;
+      case 'arrowright': e.preventDefault(); orbitTheta+=0.3; updateCameraPosition(); break;
+      case 'arrowup': e.preventDefault(); orbitPhi=Math.max(0.2,orbitPhi-0.3); updateCameraPosition(); break;
+      case 'arrowdown': e.preventDefault(); orbitPhi=Math.min(Math.PI-0.2,orbitPhi+0.3); updateCameraPosition(); break;
+    }
+  });
+}
+
+/* ─── 渲染循环 ─────────────────────────────────── */
+function animate(now) {
+  requestAnimationFrame(animate);
+  updateAnimation(now);
+  if (!isDragging && !animState) { orbitTheta += 0.002; updateCameraPosition(); }
+  renderer.render(scene, camera);
+}
+
+/* ─── 启动 ─────────────────────────────────────── */
+function init() {
+  initScene(); buildCube(3); setupEvents();
+  requestAnimationFrame(animate);
+  updateStepDisplay(); updateButtonStates();
+  console.log('🦞 3D 魔方 · 复原教程 已就绪（按阶数速拧方法版）');
+}
+
+init();
+</script>
+</body>
+</html>
