@@ -284,7 +284,7 @@ const {
      "none"     — 直接逆序，不做优化
      "adjacent" — 移除相邻同面反向对
      "full"     — 全局反复消除可抵消配对
-     "grouped"  — 按面分组排序后消除
+     "full"     — 全局反复消除可抵消配对
    ────────────────────────────────────────────────────────────── */
 const METHODS = {
   2: [
@@ -323,7 +323,7 @@ const METHODS = {
       info: '全球标准速拧方法',
       steps: ['Cross 底面十字', 'F2L 前两层', 'OLL 顶层方向', 'PLL 顶层排列'],
       detail: '约55-60步 · 119公式 · ★★★★☆',
-      strategy: 'grouped'
+      strategy: 'full'
     },
     {
       name: 'Roux 方法',
@@ -346,7 +346,7 @@ const METHODS = {
       info: '四阶速拧主流·世界纪录',
       steps: ['底层十字棱', '剩余中心块', '最后4条棱', '按三阶还原'],
       detail: '约100-120步 · ★★★☆☆',
-      strategy: 'grouped'
+      strategy: 'full'
     },
     {
       name: 'Hoya 方法',
@@ -369,7 +369,7 @@ const METHODS = {
       info: '五阶速拧主流',
       steps: ['底层十字棱', '剩余中心块', '最后8条棱', '按三阶还原'],
       detail: '约160-190步 · ★★★★☆',
-      strategy: 'grouped'
+      strategy: 'full'
     },
     {
       name: '中心优先法',
@@ -392,7 +392,7 @@ const METHODS = {
       info: '更高效策略',
       steps: ['六阶视为两个四阶', '分别降阶', '合并处理'],
       detail: '约230-280步 · ★★★★★',
-      strategy: 'grouped'
+      strategy: 'full'
     },
     {
       name: '分层还原法',
@@ -631,18 +631,18 @@ function executeMoveQueue(queue, onComplete) {
 }
 
 /* ──────────────────────────────────────────────────────────────
-   还原方法计算 — 按 strategy 分四档
+   还原方法计算 — 按 strategy 分三档
+   注意: 逆序重放必须严格保持顺序（不同面转动不满足交换律），
+   只允许删除序列中相邻的可抵消对，不能重排。
    - "none":     直接逆序反向（最忠实，步数最多）
    - "adjacent": 移除相邻同面同层反向对
    - "full":     全局反复消除直到稳定
-   - "grouped":  按面+层分组分别消除（模拟速拧分组优化）
    ────────────────────────────────────────────────────────────── */
 function computeRestoreSequence() {
   // 1. 逆序反向（所有方法的基础）
   let seq = moveHistory.slice().reverse().map(m => ({
     face:m.face, direction:-m.direction, layerIdx:m.layerIdx
   }));
-  const mKey = (m)=>`${m.face}_${m.layerIdx}`;
 
   const method = METHODS[cubeOrder]?.[currentMethodIdx];
   const strategy = method?.strategy || 'none';
@@ -656,31 +656,6 @@ function computeRestoreSequence() {
 
     case 'full':
       return fullCancel(seq);
-
-    case 'grouped': {
-      // 把还原序列按 (face, layerIdx) 分组
-      // 对每组内部消除抵消步骤，然后按组交错输出（模拟分阶段还原）
-      const groups = new Map();
-      seq.forEach(m => {
-        const k = mKey(m);
-        if (!groups.has(k)) groups.set(k, []);
-        groups.get(k).push(m);
-      });
-      // 对每组做内部消除
-      for (const [k, arr] of groups)
-        groups.set(k, cancelPass(arr));
-      // 交错输出：每轮从非空组取一条
-      const result = [];
-      const entries = [...groups.entries()];
-      let any;
-      do {
-        any = false;
-        for (const [k, arr] of entries) {
-          if (arr.length > 0) { result.push(arr.shift()); any = true; }
-        }
-      } while (any);
-      return result;
-    }
 
     default:
       return seq;
